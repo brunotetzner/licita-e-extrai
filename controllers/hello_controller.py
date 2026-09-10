@@ -1,8 +1,11 @@
 from flask import Blueprint, jsonify, request
 from unstructured.partition.pdf import partition_pdf
 
+from services.structured_chunker_service import create_structured_chunks
+from services.hybrid_search_service import hybrid_search
+from services.vector_store_service import reset_and_index_chunks
+# Keep old imports for backward compatibility (if needed elsewhere)
 from services.chunker_service import create_chunks
-from services.vector_store_service import reset_and_index_chunks, search_similar_chunks
 from services.llm_service import generate_rag_response
 
 bp = Blueprint("hello", __name__)
@@ -44,7 +47,7 @@ def extract():
         ]
 
         # Processa chunks e reseta o banco vetorial com o novo arquivo
-        chunks = create_chunks(resultado)
+        chunks = create_structured_chunks(resultado)
         reset_and_index_chunks(chunks)
 
         return jsonify({
@@ -69,7 +72,7 @@ def analyze():
     try:
         # Busca contexto relevante no banco e consulta o DeepSeek
         print(f"Prompt do usuário: {user_prompt}")
-        context_chunks = search_similar_chunks(user_prompt, top_k=4)
+        context_chunks = hybrid_search(user_prompt, top_k=4)
         ai_response = generate_rag_response(user_prompt, context_chunks)
 
         return jsonify({
