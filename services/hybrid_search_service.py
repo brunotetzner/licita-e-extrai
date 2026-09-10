@@ -62,6 +62,9 @@ def hybrid_search(query, top_k=4):
     Phase 3: Ranking
     - Combine scores: 50% semantic + 35% keyword + 15% list bonus
     - Return top-k by combined score
+    - Note: ChromaDB's default distance metric (squared L2) is unbounded, so
+      semantic_score = 1 - distance is clamped to [0, 1] (via max(0, ...))
+      before being weighted, to keep the 50/35/15 weighting consistent.
 
     Args:
         query: Search query (e.g., "Documentos obrigatórios")
@@ -95,8 +98,10 @@ def hybrid_search(query, top_k=4):
     scored_chunks = []
 
     for chunk_text, distance in zip(documents, distances):
-        # Convert distance to similarity (ChromaDB uses distance metric)
-        semantic_score = 1 - distance
+        # Convert distance to similarity (ChromaDB uses distance metric).
+        # ChromaDB's default distance (squared L2) is unbounded, so clamp
+        # to [0, 1] to preserve the documented weighting.
+        semantic_score = max(0, 1 - distance)
 
         # Keyword scoring
         keyword_score = score_by_keywords(chunk_text, query)

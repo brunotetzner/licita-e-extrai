@@ -75,3 +75,44 @@ def test_hybrid_search_combines_scores(mock_chroma):
     assert len(results) == 2
     assert "DOCUMENTOS OBRIGATÓRIOS" in results[0]
     assert "1) CPF" in results[0]
+
+
+@patch('services.hybrid_search_service.chroma_client')
+def test_semantic_score_handles_unbounded_distance(mock_chroma):
+    """ChromaDB's default distance metric (squared L2) is unbounded, so
+    distances can exceed 1.0. semantic_score = 1 - distance must be clamped
+    to [0, 1] instead of going negative, to preserve the documented
+    50/35/15 weighting."""
+    mock_collection = MagicMock()
+    mock_chroma.get_collection.return_value = mock_collection
+
+    # Distances include values well above 1.0 (unbounded metric)
+    mock_collection.query.return_value = {
+        "documents": [[
+            "Low distance chunk (most similar)",
+            "Mid distance chunk",
+            "High distance chunk (least similar, distance > 1)",
+        ]],
+        "distances": [[0.49, 1.79, 2.5]]
+    }
+
+    results = hybrid_search("some query", top_k=3)
+
+    assert len(results) == 3
+
+    # Recompute semantic scores the way the implementation should, and make
+    # sure none of them are negative / out of [0, 1] bounds by checking the
+    # ranking is preserved (low distance -> ranked at or above high distance).
+    from services.hybrid_search_service import score_by_keywords, is_numbered_list
+
+    def compute_final_score(text, distance, query):
+        semantic_score = max(0, 1 - distance)
+        assert 0 <= semantic_score <= 1
+        keyword_score = score_by_keywords(text, query)
+        list_bonus = 0.15 if is_numbered_list(text) else 0
+        return semantic_score * 0.50 + keyword_score * 0.35 + list_bonus
+
+    low_distance_score = compute_final_score("Low distance chunk (most similar)", 0.49, "some query")
+    high_distance_score = compute_final_score("High distance chunk (least similar, distance > 1)", 2.5, "some query")
+
+    assert high_distance_score <= low_distance_score

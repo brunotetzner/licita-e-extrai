@@ -9,6 +9,12 @@ def is_section_header(element):
     if len(text) > 100 or not text or not (text[0].isupper() or text[0].isdigit()):
         return False
 
+    # Reject multi-level / dotted numbering (e.g. "1.1.", "1.3.4.") which is
+    # legal subsection numbering, not a top-level section header. Matching
+    # these as headers fragments numbered lists into one chunk per item.
+    if text[0].isdigit() and text.count(".") > 1:
+        return False
+
     # Must start with a known header pattern
     header_patterns = [
         r"^\d+\.",           # "1.", "2.", etc
@@ -56,7 +62,7 @@ def create_structured_chunks(elements):
                     "text": "\n".join(section_buffer),
                     "metadata": {
                         "type": "section",
-                        "section_name": current_section_name
+                        "section_name": current_section_name or "SEM SEÇÃO"
                     }
                 })
                 section_buffer = []
@@ -73,7 +79,7 @@ def create_structured_chunks(elements):
                     "text": "\n".join(section_buffer),
                     "metadata": {
                         "type": "section",
-                        "section_name": current_section_name
+                        "section_name": current_section_name or "SEM SEÇÃO"
                     }
                 })
                 section_buffer = []
@@ -97,7 +103,7 @@ def create_structured_chunks(elements):
             "text": "\n".join(section_buffer),
             "metadata": {
                 "type": "section",
-                "section_name": current_section_name
+                "section_name": current_section_name or "SEM SEÇÃO"
             }
         })
 

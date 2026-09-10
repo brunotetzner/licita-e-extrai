@@ -71,7 +71,6 @@ def analyze():
 
     try:
         # Busca contexto relevante no banco e consulta o DeepSeek
-        print(f"Prompt do usuário: {user_prompt}")
         context_chunks = hybrid_search(user_prompt, top_k=4)
         ai_response = generate_rag_response(user_prompt, context_chunks)
 

@@ -77,9 +77,6 @@ def generate_rag_response(user_prompt: str, context_chunks: list) -> str:
 
     prompt = _build_prompt(user_prompt, context_chunks)
 
-    # Log for debugging
-    print(prompt)
-
     response = client.chat.completions.create(
         model=os.getenv("OPENROUTER_MODEL") or "deepseek/deepseek-v4-flash",
         messages=[
