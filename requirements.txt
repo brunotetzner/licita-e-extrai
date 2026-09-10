@@ -1,0 +1,25 @@
+Flask==3.0.3
+
+# ------------------------------------------------------------------------------
+# 1. Extração de PDF Leve e Alta Performance (Recomendado para Arquivos Extensos)
+# ------------------------------------------------------------------------------
+pymupdf>=1.23.0           # Extração de texto ultra-rápida (módulo fitz)
+pdfplumber>=0.10.0         # Extração precisa de tabelas mantendo estrutura visual
+
+# ------------------------------------------------------------------------------
+# 2. Processamento Avançado de Layout (Unstructured - Opcional / Mais Pesado)
+# ------------------------------------------------------------------------------
+unstructured[pdf]>=0.12.0 # Extração e particionamento inteligente de documentos
+unstructured-inference>=0.7.0  # Modelos de IA para detecção visual de layout (modo hi_res)
+pdf2image>=1.16.0          # Conversão de páginas de PDF para imagem
+pypdf>=4.0.0               # Leitura e manipulação utilitária de arquivos PDF
+
+# ------------------------------------------------------------------------------
+# 3. Formatação e Manipulação de Dados
+# ------------------------------------------------------------------------------
+pandas>=2.0.0              # Manipulação de tabelas e conversões de dados
+tabulate>=0.9.0            # Formatação de tabelas em Markdown para prompts de LLM
+
+langchain-text-splitters>=0.0.1 # Divisão inteligente de textos longos (RecursiveCharacterTextSplitter)
+tiktoken>=0.5.0            # Contagem precisa de tokens (modelos OpenAI/gerais)
+python-dotenv>=1.0.0       # Gerenciamento de variáveis de ambiente e chaves de API
