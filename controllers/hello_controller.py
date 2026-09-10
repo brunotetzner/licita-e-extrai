@@ -1,6 +1,10 @@
 from flask import Blueprint, jsonify, request
 from unstructured.partition.pdf import partition_pdf
 
+from services.chunker_service import create_chunks
+from services.vector_store_service import reset_and_index_chunks, search_similar_chunks
+from services.llm_service import generate_rag_response
+
 bp = Blueprint("hello", __name__)
 
 
@@ -11,7 +15,6 @@ def hello():
 
 @bp.post("/extract")
 def extract():
-    # 1. Valida se o arquivo foi enviado na requisição
     if "file" not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado. Envie no campo 'file'."}), 400
 
@@ -24,18 +27,13 @@ def extract():
         return jsonify({"error": "O arquivo enviado precisa ser um PDF."}), 400
 
     try:
-        # 2. Passa o stream do arquivo diretamente para o Unstructured via parâmetro 'file'
-        print('aqui')
         elements = partition_pdf(
             file=file,
             strategy="fast",
             infer_table_structure=True,
             extract_images_in_pdf=False
         )
-        print('aqui 2')
 
-
-        # 3. Estrutura o resultado simples para resposta da API
         resultado = [
             {
                 "type": el.category,
@@ -45,13 +43,40 @@ def extract():
             for el in elements
         ]
 
-        print('aqui 3')
+        # Processa chunks e reseta o banco vetorial com o novo arquivo
+        chunks = create_chunks(resultado)
+        reset_and_index_chunks(chunks)
 
         return jsonify({
-            "message": "PDF processado com sucesso",
+            "message": "PDF processado e reindexado com sucesso.",
             "total_elementos": len(resultado),
-            "data": resultado
+            "total_chunks": len(chunks)
         }), 200
 
     except Exception as e:
         return jsonify({"error": f"Erro ao processar PDF: {str(e)}"}), 500
+
+
+@bp.post("/analyze")
+def analyze():
+    data = request.get_json() or {}
+    default_prompt = "Documentos obrigatórios"
+    user_prompt = data.get("prompt") or data.get("question") or default_prompt
+
+    if not user_prompt:
+        return jsonify({"error": "O campo 'prompt' é obrigatório no JSON."}), 400
+
+    try:
+        # Busca contexto relevante no banco e consulta o DeepSeek
+        print(f"Prompt do usuário: {user_prompt}")
+        context_chunks = search_similar_chunks(user_prompt, top_k=4)
+        ai_response = generate_rag_response(user_prompt, context_chunks)
+
+        return jsonify({
+            "prompt": user_prompt,
+            "response": ai_response,
+            "context_chunks_used": len(context_chunks)
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao analisar o relatório: {str(e)}"}), 500
