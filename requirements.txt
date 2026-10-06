@@ -23,3 +23,9 @@ tabulate>=0.9.0            # Formatação de tabelas em Markdown para prompts de
 langchain-text-splitters>=0.0.1 # Divisão inteligente de textos longos (RecursiveCharacterTextSplitter)
 tiktoken>=0.5.0            # Contagem precisa de tokens (modelos OpenAI/gerais)
 python-dotenv>=1.0.0       # Gerenciamento de variáveis de ambiente e chaves de API
+
+# ------------------------------------------------------------------------------
+# 4. Banco Vetorial e LLM
+# ------------------------------------------------------------------------------
+chromadb>=1.5.0            # Banco vetorial para armazenamento e busca de embeddings
+openai>=1.0.0              # Cliente oficial da API OpenAI (usado para DeepSeek via OpenAI-compatible)

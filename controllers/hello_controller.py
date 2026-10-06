@@ -11,6 +11,30 @@ from services.llm_service import generate_rag_response
 bp = Blueprint("hello", __name__)
 
 
+def _safe_error_message(exc):
+    """Extract error message with UTF-8 encoding support."""
+    try:
+        # Try to get the error message, handling encoding issues
+        if hasattr(exc, 'args') and exc.args:
+            msg = str(exc.args[0])
+        else:
+            msg = str(exc)
+        # Ensure it's a string and safe to serialize
+        if isinstance(msg, bytes):
+            msg = msg.decode('utf-8', errors='replace')
+        # Force UTF-8 encoding to detect any issues early
+        msg.encode('utf-8')
+        return msg
+    except UnicodeEncodeError:
+        # If we still have encoding issues, use ASCII with replacements
+        try:
+            return msg.encode('ascii', errors='replace').decode('ascii')
+        except:
+            return "Erro desconhecido"
+    except Exception:
+        return "Erro desconhecido"
+
+
 @bp.get("/hello")
 def hello():
     return jsonify(message="Hello, World!")
@@ -57,7 +81,7 @@ def extract():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Erro ao processar PDF: {str(e)}"}), 500
+        return jsonify({"error": f"Erro ao processar PDF: {_safe_error_message(e)}"}), 500
 
 
 @bp.post("/analyze")
@@ -81,4 +105,4 @@ def analyze():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Erro ao analisar o relatório: {str(e)}"}), 500
+        return jsonify({"error": f"Erro ao analisar o relatório: {_safe_error_message(e)}"}), 500
