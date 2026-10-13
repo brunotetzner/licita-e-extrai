@@ -1,0 +1,11 @@
+flask
+python-dotenv
+pymongo
+langchain
+langchain-community
+langchain-text-splitters
+langchain-openai
+faiss-cpu
+pypdf
+requests
+rarfile
