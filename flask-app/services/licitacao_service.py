@@ -198,20 +198,20 @@ def analizar_licitacao_por_id(
         return None
 
     arquivo = editais[0]
-    respuestas = _analizar_editais(licitacao, arquivo)
+    responses = _analizar_editais(licitacao, arquivo)
 
     documento: LicitacaoDocumento = {
         "numero_controle_pncp": numero_controle_pncp,
         "licitacao": dict(licitacao),
         "arquivo": dict(arquivo),
-        "resumo_edital": respuestas,
+        "resumo_edital": responses,
     }
     salvar_licitacao(documento)
 
     return {
         "licitacao": licitacao,
         "arquivo": arquivo,
-        "resumo_edital": respuestas,
+        "resumo_edital": responses,
     }
 
 
