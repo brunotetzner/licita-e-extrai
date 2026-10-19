@@ -44,9 +44,59 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy Lambda
-        working-directory: serverless-licita
+      - name: Deploy Lambda code
         run: |
           aws lambda update-function-code \
             --function-name "${{ secrets.LAMBDA_FUNCTION_NAME }}" \
             --zip-file fileb://function.zip
+
+      - name: Wait for Lambda update
+        run: |
+          aws lambda wait function-updated \
+            --function-name "${{ secrets.LAMBDA_FUNCTION_NAME }}"
+
+      - name: Configure Lambda environment variables
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PNCP_API_URL: ${{ secrets.PNCP_API_URL }}
+          REQUEST_TIMEOUT_SECONDS: ${{ secrets.REQUEST_TIMEOUT_SECONDS }}
+          PNCP_COOKIE: ${{ secrets.PNCP_COOKIE }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGO_DATABASE: ${{ secrets.MONGO_DATABASE }}
+          MONGO_COLLECTION_LICITACOES: ${{ secrets.MONGO_COLLECTION_LICITACOES }}
+          SERVERLESS_LICITATION_SUMMARY_ENABLED: ${{ secrets.SERVERLESS_LICITATION_SUMMARY_ENABLED }}
+          SERVERLESS_LICITATION_SUMMARY_URL: ${{ secrets.SERVERLESS_LICITATION_SUMMARY_URL }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          keys = [
+              "OPENROUTER_API_KEY",
+              "PNCP_API_URL",
+              "REQUEST_TIMEOUT_SECONDS",
+              "PNCP_COOKIE",
+              "MONGO_URI",
+              "MONGO_DATABASE",
+              "MONGO_COLLECTION_LICITACOES",
+              "SERVERLESS_LICITATION_SUMMARY_ENABLED",
+              "SERVERLESS_LICITATION_SUMMARY_URL",
+          ]
+
+          variables = {
+              key: os.environ[key]
+              for key in keys
+          }
+
+          with open("environment.json", "w") as file:
+              json.dump({"Variables": variables}, file)
+          PY
+
+          aws lambda update-function-configuration \
+            --function-name "${{ secrets.LAMBDA_FUNCTION_NAME }}" \
+            --environment file://environment.json
+
+          aws lambda wait function-updated \
+            --function-name "${{ secrets.LAMBDA_FUNCTION_NAME }}"
+
+          rm -f environment.json
