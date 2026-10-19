@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from typing import TypedDict
 
+import requests
+
 from integrations.pncp import (
     ArquivoLicitacao,
     Licitacao,
@@ -20,6 +22,10 @@ from repositories import (
     buscar_por_id,
     listar_licitacoes,
     salvar_licitacao,
+)
+from repositories.config import (
+    SERVERLESS_LICITATION_SUMMARY_ENABLED,
+    SERVERLESS_LICITATION_SUMMARY_URL,
 )
 
 MAX_LICITACOES = 3
@@ -84,6 +90,29 @@ def _analizar_editais(
             shutil.rmtree(dir_extraccion, ignore_errors=True)
 
 
+def _encaminhar_para_lambda(
+    licitacao: Licitacao,
+    arquivo: ArquivoLicitacao,
+) -> None:
+    """
+    Encaminha o processamento do resumo do edital para a lambda serverless.
+
+    Args:
+        licitacao: Dados da licitacao.
+        arquivo: Arquivo (edital/termo de referencia) a analisar.
+    """
+    payload = {
+        "numero_controle_pncp": licitacao.get("numero_controle_pncp"),
+        "licitacao": dict(licitacao),
+        "arquivo": dict(arquivo),
+    }
+    print(
+        f"Encaminhando processamento para a lambda "
+        f"({SERVERLESS_LICITATION_SUMMARY_URL})..."
+    )
+    requests.post(SERVERLESS_LICITATION_SUMMARY_URL, json=payload, timeout=30)
+
+
 def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
     """Busca tres licitacoes NAO processadas e analisa seus editais."""
     resultados: list[ResultadoAnaliseLicitacao] = []
@@ -115,6 +144,19 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
             editais = buscar_editais(licitacao)
 
             for arquivo in editais:
+                if SERVERLESS_LICITATION_SUMMARY_ENABLED:
+                    # Salva sem o resumo da IA e encaminha o processamento
+                    # para a lambda, encerrando a execucao em seguida.
+                    documento: LicitacaoDocumento = {
+                        "numero_controle_pncp": numero_controle,
+                        "licitacao": dict(licitacao),
+                        "arquivo": dict(arquivo),
+                        "resumo_edital": [],
+                    }
+                    salvar_licitacao(documento)
+                    _encaminhar_para_lambda(licitacao, arquivo)
+                    return resultados
+
                 respuestas = _analizar_editais(licitacao, arquivo)
 
                 documento: LicitacaoDocumento = {
@@ -171,26 +213,30 @@ def analizar_licitacao_por_id(
     """
     # Se ja foi processada, retorna o documento salvo sem re-analisar.
     documento_existente = buscar_por_id(numero_controle_pncp)
-    if documento_existente is not None:
-        print(
-            f"Licitacao {numero_controle_pncp} ja processada, "
-            "retornando do banco..."
-        )
-        # Documentos antigos usam "respostas"; os novos usam "resumo_edital".
-        resumo = documento_existente.get("resumo_edital") or documento_existente.get(
-            "respostas", []
-        )
-        return {
-            "licitacao": documento_existente.get("licitacao", {}),
-            "arquivo": documento_existente.get("arquivo", {}),
-            "resumo_edital": resumo,
-        }
+        # if documento_existente is not None:
+        #     print(
+        #         f"Licitacao {numero_controle_pncp} ja processada, "
+        #         "retornando do banco..."
+        #     )
+        #     # Documentos antigos usam "respostas"; os novos usam "resumo_edital".
+        #     resumo = documento_existente.get("resumo_edital") or documento_existente.get(
+        #         "respostas", []
+        #     )
+        #     return {
+        #         "licitacao": documento_existente.get("licitacao", {}),
+        #         "arquivo": documento_existente.get("arquivo", {}),
+        #         "resumo_edital": resumo,
+        #     }
 
+    print('BUSCANDO')
     licitacao = buscar_licitacao_por_numero_controle(numero_controle_pncp)
+    print('LICITACAO', licitacao)
     if licitacao is None:
         return None
 
+    print('EDITAIS')
     editais = buscar_editais(licitacao)
+    print('EDITAIS', editais)
     if not editais:
         print(
             f"Licitacao {numero_controle_pncp} sem editais/termos de referencia."
@@ -198,6 +244,26 @@ def analizar_licitacao_por_id(
         return None
 
     arquivo = editais[0]
+
+    if SERVERLESS_LICITATION_SUMMARY_ENABLED:
+        # Salva sem o resumo da IA e encaminha o processamento para a lambda,
+        # encerrando a execucao em seguida.
+        documento: LicitacaoDocumento = {
+            "numero_controle_pncp": numero_controle_pncp,
+            "licitacao": dict(licitacao),
+            "arquivo": dict(arquivo),
+            "resumo_edital": [],
+        }
+        salvar_licitacao(documento)
+        print('licitacao<<<<<<<>>>>>>>', licitacao)
+        print('arquivo<<<<<<<>>>>>>>', arquivo)
+        _encaminhar_para_lambda(licitacao, arquivo)
+        return {
+            "licitacao": licitacao,
+            "arquivo": arquivo,
+            "resumo_edital": [],
+        }
+
     responses = _analizar_editais(licitacao, arquivo)
 
     documento: LicitacaoDocumento = {

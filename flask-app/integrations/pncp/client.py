@@ -197,11 +197,14 @@ def buscar_licitacao_por_numero_controle(
     url = (
         f"{PNCP_API_URL}/consulta/v1/orgaos/{cnpj}/compras/{ano}/{sequencial}"
     )
+    print(url)
     try:
         with _create_http_session() as session:
             response = session.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
         if response.status_code in (400, 404):
+            print('ERROR 400 OR 404')
             return None
+        
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as error:
@@ -223,7 +226,7 @@ def buscar_licitacao_por_numero_controle(
             f"{getattr(response, 'text', '')[:1000]}"
         )
         raise ValueError(f"Resposta inesperada da API do PNCP: {url}")
-
+    print('FIM', payload)
     return cast(Licitacao, _normalizar_licitacao_consulta(payload))
 
 
