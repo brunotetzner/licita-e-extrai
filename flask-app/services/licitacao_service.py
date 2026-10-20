@@ -24,7 +24,8 @@ from repositories import (
     salvar_licitacao,
 )
 from repositories.config import (
-    SERVERLESS_LICITATION_SUMMARY_ENABLED,
+    ASYNC_LICITATION_SUMMARY_ENABLED,
+    PROCESSAR_RESUMO_URL,
     SERVERLESS_LICITATION_SUMMARY_URL,
 )
 
@@ -144,7 +145,7 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
             editais = buscar_editais(licitacao)
 
             for arquivo in editais:
-                if SERVERLESS_LICITATION_SUMMARY_ENABLED:
+                if ASYNC_LICITATION_SUMMARY_ENABLED:
                     # Salva sem o resumo da IA e encaminha o processamento
                     # para a lambda, encerrando a execucao em seguida.
                     documento: LicitacaoDocumento = {
@@ -213,30 +214,25 @@ def analizar_licitacao_por_id(
     """
     # Se ja foi processada, retorna o documento salvo sem re-analisar.
     documento_existente = buscar_por_id(numero_controle_pncp)
-        # if documento_existente is not None:
-        #     print(
-        #         f"Licitacao {numero_controle_pncp} ja processada, "
-        #         "retornando do banco..."
-        #     )
-        #     # Documentos antigos usam "respostas"; os novos usam "resumo_edital".
-        #     resumo = documento_existente.get("resumo_edital") or documento_existente.get(
-        #         "respostas", []
-        #     )
-        #     return {
-        #         "licitacao": documento_existente.get("licitacao", {}),
-        #         "arquivo": documento_existente.get("arquivo", {}),
-        #         "resumo_edital": resumo,
-        #     }
-
-    print('BUSCANDO')
+    if documento_existente is not None:
+        print(
+            f"Licitacao {numero_controle_pncp} ja processada, "
+            "retornando do banco..."
+        )
+        # Documentos antigos usam "respostas"; os novos usam "resumo_edital".
+        resumo = documento_existente.get("resumo_edital") or documento_existente.get(
+            "respostas", []
+        )
+        return {
+            "licitacao": documento_existente.get("licitacao", {}),
+            "arquivo": documento_existente.get("arquivo", {}),
+            "resumo_edital": resumo,
+        }
     licitacao = buscar_licitacao_por_numero_controle(numero_controle_pncp)
-    print('LICITACAO', licitacao)
     if licitacao is None:
         return None
 
-    print('EDITAIS')
     editais = buscar_editais(licitacao)
-    print('EDITAIS', editais)
     if not editais:
         print(
             f"Licitacao {numero_controle_pncp} sem editais/termos de referencia."
@@ -245,9 +241,9 @@ def analizar_licitacao_por_id(
 
     arquivo = editais[0]
 
-    if SERVERLESS_LICITATION_SUMMARY_ENABLED:
-        # Salva sem o resumo da IA e encaminha o processamento para a lambda,
-        # encerrando a execucao em seguida.
+    if ASYNC_LICITATION_SUMMARY_ENABLED:
+        # Salva sem o resumo da IA e encaminha o processamento para o
+        # endpoint interno, encerrando a execucao em seguida.
         documento: LicitacaoDocumento = {
             "numero_controle_pncp": numero_controle_pncp,
             "licitacao": dict(licitacao),
@@ -255,9 +251,22 @@ def analizar_licitacao_por_id(
             "resumo_edital": [],
         }
         salvar_licitacao(documento)
-        print('licitacao<<<<<<<>>>>>>>', licitacao)
-        print('arquivo<<<<<<<>>>>>>>', arquivo)
-        _encaminhar_para_lambda(licitacao, arquivo)
+
+        # Fire-and-forget: chama o endpoint interno para processar o resumo
+        # em background sem travar a resposta.
+        payload = {
+            "numero_controle_pncp": numero_controle_pncp,
+            "licitacao": dict(licitacao),
+            "arquivo": dict(arquivo),
+        }
+        try:
+            requests.post(PROCESSAR_RESUMO_URL, json=payload, timeout=5)
+        except requests.RequestException as error:
+            print(
+                f"Erro ao encaminhar processamento para {PROCESSAR_RESUMO_URL}: "
+                f"{error}"
+            )
+
         return {
             "licitacao": licitacao,
             "arquivo": arquivo,
@@ -274,6 +283,40 @@ def analizar_licitacao_por_id(
     }
     salvar_licitacao(documento)
 
+    return {
+        "licitacao": licitacao,
+        "arquivo": arquivo,
+        "resumo_edital": responses,
+    }
+
+
+def processar_resumo_edital(dados: dict) -> dict:
+    """
+    Processa o resumo do edital de forma assincrona: baixa o PDF, extrai,
+    analisa com RAG e atualiza o MongoDB com o resultado.
+
+    Args:
+        dados: Dicionario com 'numero_controle_pncp', 'licitacao' e 'arquivo'.
+
+    Returns:
+        Dict com o resultado da analise.
+    """
+    numero_controle_pncp = dados["numero_controle_pncp"]
+    licitacao = dados["licitacao"]
+    arquivo = dados["arquivo"]
+
+    print(f"Processando resumo do edital {numero_controle_pncp}...")
+    responses = _analizar_editais(licitacao, arquivo)
+
+    documento: LicitacaoDocumento = {
+        "numero_controle_pncp": numero_controle_pncp,
+        "licitacao": dict(licitacao),
+        "arquivo": dict(arquivo),
+        "resumo_edital": responses,
+    }
+    salvar_licitacao(documento)
+
+    print(f"Resumo do edital {numero_controle_pncp} processado com sucesso.")
     return {
         "licitacao": licitacao,
         "arquivo": arquivo,

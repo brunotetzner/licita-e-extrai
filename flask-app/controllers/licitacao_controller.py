@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -7,6 +8,7 @@ from services.licitacao_service import (
     analizar_licitacao_por_id,
     get_licitacoes,
     listar_licitacoes_guardadas,
+    processar_resumo_edital,
 )
 
 
@@ -109,4 +111,43 @@ def analisar_pdf_route():
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+@licitacao_controller.post("/processar-resumo")
+def processar_resumo_route():
+    """
+    POST /licitacoes/processar-resumo
+
+    Endpoint interno para processar o resumo do edital de forma assincrona.
+    Recebe os dados da licitacao e arquivo, dispara o processamento em
+    background e retorna 202 (Accepted) imediatamente.
+
+    JSON body:
+        numero_controle_pncp: str (obrigatorio)
+        licitacao: dict (obrigatorio)
+        arquivo: dict (obrigatorio)
+    """
+    dados = request.get_json(silent=True)
+    if not dados:
+        return jsonify({"erro": "Corpo da requisicao deve ser JSON."}), 400
+
+    if not all(k in dados for k in ("numero_controle_pncp", "licitacao", "arquivo")):
+        return jsonify(
+            {
+                "erro": (
+                    "Campos obrigatorios: "
+                    "'numero_controle_pncp', 'licitacao', 'arquivo'."
+                )
+            }
+        ), 400
+
+    # Dispara o processamento em uma thread separada para nao bloquear
+    thread = threading.Thread(
+        target=processar_resumo_edital,
+        args=(dados,),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({"status": "processamento iniciado"}), 202
 

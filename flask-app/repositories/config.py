@@ -13,9 +13,13 @@ MONGO_COLLECTION_LICITACOES: str = _getenv_str(
     "MONGO_COLLECTION_LICITACOES", "licitacoes"
 )
 
-SERVERLESS_LICITATION_SUMMARY_ENABLED: bool = os.getenv(
-    "SERVERLESS_LICITATION_SUMMARY_ENABLED", "false"
+ASYNC_LICITATION_SUMMARY_ENABLED: bool = os.getenv(
+    "ASYNC_LICITATION_SUMMARY_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
 SERVERLESS_LICITATION_SUMMARY_URL: str = _getenv_str(
     "SERVERLESS_LICITATION_SUMMARY_URL", ""
+)
+PROCESSAR_RESUMO_URL: str = _getenv_str(
+    "PROCESSAR_RESUMO_URL",
+    "http://127.0.0.1:5000/licitacoes/processar-resumo",
 )
