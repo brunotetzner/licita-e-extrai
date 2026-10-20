@@ -1,4 +1,3 @@
-
 name: Deploy Python Lambda
 
 on:
@@ -44,11 +43,26 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy Lambda code
+      - name: Upload package to S3
+        env:
+          LAMBDA_DEPLOY_BUCKET: ${{ secrets.LAMBDA_DEPLOY_BUCKET }}
         run: |
+          KEY="deployments/${GITHUB_SHA}/function.zip"
+
+          aws s3 cp function.zip \
+            "s3://${LAMBDA_DEPLOY_BUCKET}/${KEY}"
+
+      - name: Deploy Lambda code
+        env:
+          LAMBDA_DEPLOY_BUCKET: ${{ secrets.LAMBDA_DEPLOY_BUCKET }}
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+        run: |
+          KEY="deployments/${GITHUB_SHA}/function.zip"
+
           aws lambda update-function-code \
-            --function-name "${{ secrets.LAMBDA_FUNCTION_NAME }}" \
-            --zip-file fileb://function.zip
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --s3-bucket "$LAMBDA_DEPLOY_BUCKET" \
+            --s3-key "$KEY"
 
       - name: Wait for Lambda update
         run: |
