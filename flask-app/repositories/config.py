@@ -38,10 +38,8 @@ JWT_EXPIRACAO_SEGUNDOS: int = int(
 ASYNC_LICITATION_SUMMARY_ENABLED: bool = os.getenv(
     "ASYNC_LICITATION_SUMMARY_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
-SERVERLESS_LICITATION_SUMMARY_URL: str = _getenv_str(
-    "SERVERLESS_LICITATION_SUMMARY_URL", ""
+GITHUB_ACTIONS_TOKEN: str = _getenv_str("GITHUB_ACTIONS_TOKEN", "")
+GITHUB_ACTIONS_REPOSITORY: str = _getenv_str(
+    "GITHUB_ACTIONS_REPOSITORY", "brunotetzner/licita-e-extrai"
 )
-PROCESSAR_RESUMO_URL: str = _getenv_str(
-    "PROCESSAR_RESUMO_URL",
-    "http://127.0.0.1:5000/licitacoes/processar-resumo",
-)
+GITHUB_ACTIONS_REF: str = _getenv_str("GITHUB_ACTIONS_REF", "main")

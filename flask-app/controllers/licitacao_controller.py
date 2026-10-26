@@ -62,10 +62,7 @@ def analizar_licitacao_route(numero_controle_pncp: str):
     e retorna o resultado.
     """
     try:
-        resultado = analizar_licitacao_por_id(
-            numero_controle_pncp,
-            authorization=request.headers.get("Authorization"),
-        )
+        resultado = analizar_licitacao_por_id(numero_controle_pncp)
     except ValueError as error:
         return jsonify({"erro": str(error)}), 400
 

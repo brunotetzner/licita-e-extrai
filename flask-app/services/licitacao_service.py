@@ -25,8 +25,9 @@ from repositories import (
 )
 from repositories.config import (
     ASYNC_LICITATION_SUMMARY_ENABLED,
-    PROCESSAR_RESUMO_URL,
-    SERVERLESS_LICITATION_SUMMARY_URL,
+    GITHUB_ACTIONS_REF,
+    GITHUB_ACTIONS_REPOSITORY,
+    GITHUB_ACTIONS_TOKEN,
 )
 
 MAX_LICITACOES = 3
@@ -92,27 +93,44 @@ def _analizar_editais(
             shutil.rmtree(dir_extraccion, ignore_errors=True)
 
 
-def _encaminhar_para_lambda(
-    licitacao: Licitacao,
-    arquivo: ArquivoLicitacao,
-) -> None:
+def _disparar_action_processar_resumo(numero_controle_pncp: str) -> None:
     """
-    Encaminha o processamento do resumo do edital para a lambda serverless.
+    Dispara o workflow do GitHub Actions que processa o resumo da licitação.
 
     Args:
-        licitacao: Dados da licitacao.
-        arquivo: Arquivo (edital/termo de referencia) a analisar.
+        numero_controle_pncp: Identificador da licitação já salva no MongoDB.
     """
-    payload = {
-        "numero_controle_pncp": licitacao.get("numero_controle_pncp"),
-        "licitacao": dict(licitacao),
-        "arquivo": dict(arquivo),
-    }
-    print(
-        f"Encaminhando processamento para a lambda "
-        f"({SERVERLESS_LICITATION_SUMMARY_URL})..."
+    if not GITHUB_ACTIONS_TOKEN:
+        raise RuntimeError(
+            "GITHUB_ACTIONS_TOKEN não foi configurado no ambiente."
+        )
+
+    url = (
+        f"https://api.github.com/repos/{GITHUB_ACTIONS_REPOSITORY}"
+        "/actions/workflows/processar-resumo.yml/dispatches"
     )
-    requests.post(SERVERLESS_LICITATION_SUMMARY_URL, json=payload, timeout=30)
+    response = requests.post(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {GITHUB_ACTIONS_TOKEN}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        json={
+            "ref": GITHUB_ACTIONS_REF,
+            "inputs": {"numero_controle_pncp": numero_controle_pncp},
+        },
+        timeout=10,
+    )
+    if response.status_code != 204:
+        raise RuntimeError(
+            "GitHub Actions rejeitou o disparo do workflow "
+            f"(HTTP {response.status_code})."
+        )
+    print(
+        f"Workflow de resumo disparado para a licitação "
+        f"{numero_controle_pncp}."
+    )
 
 
 def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
@@ -153,12 +171,13 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
                     "resumo_edital": [],
                     "status": "PENDENTE",
                 }
-                salvar_licitacao(documento)
+                if not salvar_licitacao(documento):
+                    raise RuntimeError(
+                        f"Não foi possível salvar a licitação {numero_controle}."
+                    )
 
                 if ASYNC_LICITATION_SUMMARY_ENABLED:
-                    # Salva sem o resumo da IA e encaminha o processamento
-                    # para a lambda, encerrando a execucao em seguida.
-                    _encaminhar_para_lambda(licitacao, arquivo)
+                    _disparar_action_processar_resumo(numero_controle)
                     return resultados
 
                 respuestas = _analizar_editais(licitacao, arquivo)
@@ -203,7 +222,6 @@ def analisar_pdf(pdf_path: str, perguntas: list[str] | None = None) -> list[str]
 
 def analizar_licitacao_por_id(
     numero_controle_pncp: str,
-    authorization: str | None = None,
 ) -> ResultadoAnaliseLicitacao | None:
     """
     Analisa uma licitacao especifica pelo numero de control.
@@ -257,35 +275,13 @@ def analizar_licitacao_por_id(
         "resumo_edital": [],
         "status": "PENDENTE",
     }
-    salvar_licitacao(documento_pendente)
+    if not salvar_licitacao(documento_pendente):
+        raise RuntimeError(
+            f"Não foi possível salvar a licitação {numero_controle_pncp}."
+        )
 
     if ASYNC_LICITATION_SUMMARY_ENABLED:
-        # Salva sem o resumo da IA e encaminha o processamento para o
-        # endpoint interno, encerrando a execucao em seguida.
-        # Fire-and-forget: chama o endpoint interno para processar o resumo
-        # em background sem travar a resposta.
-        payload = {
-            "numero_controle_pncp": numero_controle_pncp,
-            "licitacao": dict(licitacao),
-            "arquivo": dict(arquivo),
-        }
-        try:
-            headers = (
-                {"Authorization": authorization}
-                if authorization
-                else {}
-            )
-            requests.post(
-                PROCESSAR_RESUMO_URL,
-                json=payload,
-                headers=headers,
-                timeout=5,
-            )
-        except requests.RequestException as error:
-            print(
-                f"Erro ao encaminhar processamento para {PROCESSAR_RESUMO_URL}: "
-                f"{error}"
-            )
+        _disparar_action_processar_resumo(numero_controle_pncp)
 
         return {
             "licitacao": licitacao,
@@ -303,7 +299,11 @@ def analizar_licitacao_por_id(
         "resumo_edital": responses,
         "status": "PROCESSADO",
     }
-    salvar_licitacao(documento)
+    if not salvar_licitacao(documento):
+        raise RuntimeError(
+            f"Não foi possível salvar o resumo da licitação "
+            f"{numero_controle_pncp}."
+        )
 
     return {
         "licitacao": licitacao,
@@ -338,7 +338,11 @@ def processar_resumo_edital(dados: dict) -> dict:
         "resumo_edital": responses,
         "status": "PROCESSADO",
     }
-    salvar_licitacao(documento)
+    if not salvar_licitacao(documento):
+        raise RuntimeError(
+            f"Não foi possível salvar o resumo da licitação "
+            f"{numero_controle_pncp}."
+        )
 
     print(f"Resumo do edital {numero_controle_pncp} processado com sucesso.")
     return {

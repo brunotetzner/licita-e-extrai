@@ -138,19 +138,34 @@ O comportamento depende de a licitação já estar salva e da configuração
 - Com o modo assíncrono desativado (padrão), baixa e analisa o edital antes de
   responder. `resumo_edital` contém as respostas geradas.
 - Com `ASYNC_LICITATION_SUMMARY_ENABLED=true`, salva inicialmente o documento
-  sem resumo e encaminha os dados para `PROCESSAR_RESUMO_URL`. A resposta
-  imediata contém `resumo_edital: []`; o processamento ocorre em background e o
-  resultado é salvo no MongoDB quando terminar. Consulte depois a listagem para
-  obter o resumo atualizado.
+  como `PENDENTE` e dispara o workflow `processar-resumo.yml`, enviando o número
+  de controle PNCP. O workflow busca os dados no MongoDB, executa o
+  processamento e atualiza resumo e status para `PROCESSADO`. A resposta
+  imediata contém `resumo_edital: []`; consulte depois a listagem para obter o
+  resumo atualizado.
 
 O campo `status` será `PENDENTE` enquanto o resumo aguarda ou está em
 processamento, e `PROCESSADO` após a geração do resumo e sua gravação no banco.
 No modo assíncrono, a resposta imediata da análise terá `status: "PENDENTE"`;
 consulte a listagem para acompanhar o valor atualizado.
 
-Se a requisição foi autenticada com `Authorization`, o mesmo header é
-encaminhado à API interna configurada em `PROCESSAR_RESUMO_URL` no modo
-assíncrono.
+O modo assíncrono requer `GITHUB_ACTIONS_TOKEN` no serviço, com permissão para
+executar workflows no repositório definido por `GITHUB_ACTIONS_REPOSITORY`.
+`GITHUB_ACTIONS_REF` define a branch usada (padrão: `main`). O token JWT da API
+não é encaminhado ao workflow.
+
+No Render, habilite `ASYNC_LICITATION_SUMMARY_ENABLED=true` e configure
+`GITHUB_ACTIONS_TOKEN` com um token do GitHub que tenha permissão `Actions:
+write` no repositório. No GitHub, o workflow precisa estar na branch informada
+em `GITHUB_ACTIONS_REF`.
+
+Configure também estes GitHub Actions secrets no repositório:
+
+- `MONGO_URI`
+- `OPENROUTER_API_KEY`
+- `MONGO_DATABASE` e `MONGO_COLLECTION_LICITACOES` se forem diferentes dos
+  padrões `licitacoes_db` e `licitacoes`
+- `PNCP_COOKIE` se a integração com o PNCP exigir cookie
 
 **Erros**
 

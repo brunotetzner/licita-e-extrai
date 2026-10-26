@@ -1,0 +1,52 @@
+name: Processar resumo de edital
+
+on:
+  workflow_dispatch:
+    inputs:
+      numero_controle_pncp:
+        description: Número de controle PNCP da licitação pendente
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resumo-${{ inputs.numero_controle_pncp }}
+  cancel-in-progress: false
+
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: flask-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: flask-app/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Process pending summary
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGO_DATABASE: ${{ secrets.MONGO_DATABASE || 'licitacoes_db' }}
+          MONGO_COLLECTION_LICITACOES: ${{ secrets.MONGO_COLLECTION_LICITACOES || 'licitacoes' }}
+          MONGO_COLLECTION_VETORES_PREFIX: ${{ secrets.MONGO_COLLECTION_VETORES_PREFIX || 'vetores_temporarios' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PNCP_API_URL: ${{ secrets.PNCP_API_URL || 'https://pncp.gov.br/api' }}
+          REQUEST_TIMEOUT_SECONDS: ${{ secrets.REQUEST_TIMEOUT_SECONDS || '30' }}
+          PNCP_COOKIE: ${{ secrets.PNCP_COOKIE || '' }}
+          NUMERO_CONTROLE_PNCP: ${{ inputs.numero_controle_pncp }}
+        run: python scripts/processar_resumo_action.py
