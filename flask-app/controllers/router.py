@@ -1,10 +1,16 @@
 from flask import jsonify, request
 
+from controllers.auth_controller import auth_controller
 from controllers.licitacao_controller import licitacao_controller
 from services.licitacao_service import listar_licitacoes_guardadas
 
+# Importa o middleware de autenticação para registrar o before_request
+# que protege todas as rotas do licitacao_controller.
+from middlewares.auth_middleware import validar_token  # noqa: F401
+
 
 def register_routes(app):
+    app.register_blueprint(auth_controller)
     app.register_blueprint(licitacao_controller)
 
     @app.get("/")

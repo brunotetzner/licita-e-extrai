@@ -12,6 +12,17 @@ MONGO_DATABASE: str = _getenv_str("MONGO_DATABASE", "licitacoes_db")
 MONGO_COLLECTION_LICITACOES: str = _getenv_str(
     "MONGO_COLLECTION_LICITACOES", "licitacoes"
 )
+MONGO_COLLECTION_USUARIOS: str = _getenv_str(
+    "MONGO_COLLECTION_USUARIOS", "usuarios"
+)
+
+JWT_SECRET_KEY: str = _getenv_str(
+    "JWT_SECRET_KEY",
+    "dev-secret-trocar-em-producao-0123456789abcdef",
+)
+JWT_EXPIRACAO_SEGUNDOS: int = int(
+    _getenv_str("JWT_EXPIRACAO_SEGUNDOS", "3600")
+)
 
 ASYNC_LICITATION_SUMMARY_ENABLED: bool = os.getenv(
     "ASYNC_LICITATION_SUMMARY_ENABLED", "false"
