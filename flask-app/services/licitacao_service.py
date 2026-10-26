@@ -198,6 +198,7 @@ def analisar_pdf(pdf_path: str, perguntas: list[str] | None = None) -> list[str]
 
 def analizar_licitacao_por_id(
     numero_controle_pncp: str,
+    authorization: str | None = None,
 ) -> ResultadoAnaliseLicitacao | None:
     """
     Analisa uma licitacao especifica pelo numero de control.
@@ -223,11 +224,11 @@ def analizar_licitacao_por_id(
         resumo = documento_existente.get("resumo_edital") or documento_existente.get(
             "respostas", []
         )
-        return {
-            "licitacao": documento_existente.get("licitacao", {}),
-            "arquivo": documento_existente.get("arquivo", {}),
-            "resumo_edital": resumo,
-        }
+        # return {
+        #     "licitacao": documento_existente.get("licitacao", {}),
+        #     "arquivo": documento_existente.get("arquivo", {}),
+        #     "resumo_edital": resumo,
+        # }
     licitacao = buscar_licitacao_por_numero_controle(numero_controle_pncp)
     if licitacao is None:
         return None
@@ -260,7 +261,17 @@ def analizar_licitacao_por_id(
             "arquivo": dict(arquivo),
         }
         try:
-            requests.post(PROCESSAR_RESUMO_URL, json=payload, timeout=5)
+            headers = (
+                {"Authorization": authorization}
+                if authorization
+                else {}
+            )
+            requests.post(
+                PROCESSAR_RESUMO_URL,
+                json=payload,
+                headers=headers,
+                timeout=5,
+            )
         except requests.RequestException as error:
             print(
                 f"Erro ao encaminhar processamento para {PROCESSAR_RESUMO_URL}: "

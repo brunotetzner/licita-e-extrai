@@ -62,7 +62,10 @@ def analizar_licitacao_route(numero_controle_pncp: str):
     e retorna o resultado.
     """
     try:
-        resultado = analizar_licitacao_por_id(numero_controle_pncp)
+        resultado = analizar_licitacao_por_id(
+            numero_controle_pncp,
+            authorization=request.headers.get("Authorization"),
+        )
     except ValueError as error:
         return jsonify({"erro": str(error)}), 400
 
@@ -80,37 +83,6 @@ def analizar_licitacao_route(numero_controle_pncp: str):
         )
 
     return jsonify(resultado)
-
-
-@licitacao_controller.post("/analisar")
-def analisar_pdf_route():
-    """
-    Recebe um PDF via upload, delega ao serviço RAG e retorna as respostas.
-    Espera um multipart/form-data com o campo 'pdf' contendo o arquivo
-    e um campo opcional 'perguntas' (JSON array de strings).
-    """
-    if "pdf" not in request.files:
-        return jsonify({"erro": "Campo 'pdf' é obrigatório."}), 400
-
-    pdf_file = request.files["pdf"]
-    if pdf_file.filename == "":
-        return jsonify({"erro": "Nenhum arquivo enviado."}), 400
-
-    temp_path = Path("/tmp") / pdf_file.filename
-    pdf_file.save(str(temp_path))
-
-    perguntas_raw = request.form.get("perguntas")
-    perguntas: list[str] | None = None
-    if perguntas_raw:
-        import json
-        perguntas = json.loads(perguntas_raw)
-
-    try:
-        respostas = analisar_pdf(str(temp_path), perguntas)
-        return jsonify({"respostas": respostas})
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
 
 
 @licitacao_controller.post("/processar-resumo")
@@ -150,4 +122,3 @@ def processar_resumo_route():
     thread.start()
 
     return jsonify({"status": "processamento iniciado"}), 202
-

@@ -1,15 +1,19 @@
 import os
-from dotenv import load_dotenv
+from uuid import uuid4
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 from langchain.tools import tool
 from langchain.agents import create_agent
 from langchain.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 
-load_dotenv()
+from repositories.vetores_repository import (
+    buscar_similares,
+    excluir_vetores,
+    salvar_vetores,
+)
 
 DEFAULT_QUESTIONS = [
     "Quais são as especificações técnicas e quantitativos mínimos exigidos no termo de referência?",
@@ -38,75 +42,77 @@ def process_pdf(pdf_path: str, questions: list[str] | None = None) -> list[str]:
     if questions is None:
         questions = DEFAULT_QUESTIONS
 
-    # 1. Carregar o PDF
+    # 1. Preparar o carregador, splitter e embeddings
     print(f"Carregando PDF de {pdf_path}...")
     loader = PyPDFLoader(file_path=pdf_path)
-    documents = loader.load()
-
-    # 2. Dividir em chunks
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500, chunk_overlap=100
     )
-    chunks = splitter.split_documents(documents)
-
-    print(f"Loaded {len(documents)} document(s), {len(chunks)} chunks.")
-
-    # 3. Embeddings via OpenRouter
     embeddings = OpenAIEmbeddings(
         model="openai/text-embedding-3-small",
         openai_api_base="https://openrouter.ai/api/v1",
         openai_api_key=os.getenv("OPENROUTER_API_KEY"),
     )
 
-    # 4. Vectorstore FAISS
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    # Processa uma página por vez para não manter o texto completo do PDF na RAM.
+    sufixo = uuid4().hex
+    total_chunks = 0
+    try:
+        for pagina in loader.lazy_load():
+            chunks = splitter.split_documents([pagina])
+            if not chunks:
+                continue
+            vetores = embeddings.embed_documents(
+                [chunk.page_content for chunk in chunks]
+            )
+            salvar_vetores(
+                sufixo,
+                [chunk.page_content for chunk in chunks],
+                vetores,
+            )
+            total_chunks += len(chunks)
 
-    # 5. Ferramenta de busca
-    @tool
-    def search_documents(query: str) -> str:
-        """
-        Busca documentos no PDF com base na query e retorna os resultados.
+        if total_chunks == 0:
+            raise ValueError(f"Nenhum texto extraível encontrado em {pdf_path}.")
 
-        Args:
-            query: Termo de busca fornecido pelo usuário.
+        print(f"Chunks processados: {total_chunks}.")
 
-        Returns:
-            str: Conteúdos encontrados ou mensagem de vazio.
-        """
-        docs = retriever.invoke(query)
-        if not docs:
-            return "Nenhum documento encontrado."
-        return "\n\n---\n\n".join(doc.page_content for doc in docs)
+        # 2. Ferramenta de busca: cada consulta traz apenas os top-k trechos.
+        @tool
+        def search_documents(query: str) -> str:
+            """Busca trechos relevantes no PDF para a consulta."""
+            query_vector = embeddings.embed_query(query)
+            docs = buscar_similares(sufixo, query_vector, k=3)
+            if not docs:
+                return "Nenhum documento encontrado."
+            return "\n\n---\n\n".join(docs)
 
-    # 6. Prompt de sistema
-    system_prompt = (
-        "Você é um assistente especializado em análise de documentos. "
-        "Use a ferramenta search_documents para consultar o PDF antes de "
-        "responder perguntas. Sempre cite trechos relevantes quando possível."
-    )
+        system_prompt = (
+            "Você é um assistente especializado em análise de documentos. "
+            "Use a ferramenta search_documents para consultar o PDF antes de "
+            "responder perguntas. Sempre cite trechos relevantes quando possível."
+        )
+        llm = ChatOpenAI(
+            model="deepseek/deepseek-v4-flash",
+            openai_api_base="https://openrouter.ai/api/v1",
+            openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        )
+        agent = create_agent(
+            model=llm,
+            tools=[search_documents],
+            system_prompt=system_prompt,
+        )
 
-    # 7. LLM e agente
-    llm = ChatOpenAI(
-        model="deepseek/deepseek-v4-flash",
-        openai_api_base="https://openrouter.ai/api/v1",
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    )
-    agent = create_agent(
-        model=llm,
-        tools=[search_documents],
-        system_prompt=system_prompt,
-    )
-
-    # 8. Loop de perguntas
-    responses: list[str] = []
-    for question in questions:
-        print(f"\n{'=' * 60}")
-        print(f"Pergunta: {question}")
-
-        response = agent.invoke({"messages": [HumanMessage(content=question)]})
-        answer = response["messages"][-1].content
-        print(f"Resposta: {answer}")
-        responses.append(answer)
-
-    return responses
+        responses: list[str] = []
+        for question in questions:
+            print(f"\n{'=' * 60}")
+            print(f"Pergunta: {question}")
+            response = agent.invoke(
+                {"messages": [HumanMessage(content=question)]}
+            )
+            answer = response["messages"][-1].content
+            print(f"Resposta: {answer}")
+            responses.append(answer)
+        return responses
+    finally:
+        excluir_vetores(sufixo)
