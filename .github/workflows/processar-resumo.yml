@@ -49,4 +49,4 @@ jobs:
           REQUEST_TIMEOUT_SECONDS: ${{ secrets.REQUEST_TIMEOUT_SECONDS || '30' }}
           PNCP_COOKIE: ${{ secrets.PNCP_COOKIE || '' }}
           NUMERO_CONTROLE_PNCP: ${{ inputs.numero_controle_pncp }}
-        run: python scripts/processar_resumo_action.py
+        run: python -m scripts.processar_resumo_action
