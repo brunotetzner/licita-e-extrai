@@ -21,6 +21,7 @@ class LicitacaoDocumento(TypedDict, total=False):
     arquivo: dict[str, Any]
     respostas: list[str]
     resumo_edital: list[str]
+    status: str
     processado_em: str
 
 
@@ -56,6 +57,8 @@ def buscar_por_id(numero_controle_pncp: str) -> LicitacaoDocumento | None:
                 licitacao=documento.get("licitacao", {}),
                 arquivo=documento.get("arquivo", {}),
                 respostas=documento.get("respostas", []),
+                resumo_edital=documento.get("resumo_edital", []),
+                status=documento.get("status", ""),
                 processado_em=documento.get("processado_em", ""),
             )
         return None
@@ -102,6 +105,7 @@ def listar_licitacoes(
                 arquivo=doc.get("arquivo", {}),
                 respostas=doc.get("respostas", []),
                 resumo_edital=doc.get("resumo_edital", []),
+                status=doc.get("status", ""),
                 processado_em=doc.get("processado_em", ""),
             )
             for doc in cursor

@@ -37,6 +37,7 @@ class ResultadoAnaliseLicitacao(TypedDict):
     licitacao: Licitacao
     arquivo: ArquivoLicitacao
     resumo_edital: list[str]
+    status: str
 
 
 def _licitacao_ja_processada(licitacao: Licitacao) -> bool:
@@ -145,16 +146,18 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
             editais = buscar_editais(licitacao)
 
             for arquivo in editais:
+                documento: LicitacaoDocumento = {
+                    "numero_controle_pncp": numero_controle,
+                    "licitacao": dict(licitacao),
+                    "arquivo": dict(arquivo),
+                    "resumo_edital": [],
+                    "status": "PENDENTE",
+                }
+                salvar_licitacao(documento)
+
                 if ASYNC_LICITATION_SUMMARY_ENABLED:
                     # Salva sem o resumo da IA e encaminha o processamento
                     # para a lambda, encerrando a execucao em seguida.
-                    documento: LicitacaoDocumento = {
-                        "numero_controle_pncp": numero_controle,
-                        "licitacao": dict(licitacao),
-                        "arquivo": dict(arquivo),
-                        "resumo_edital": [],
-                    }
-                    salvar_licitacao(documento)
                     _encaminhar_para_lambda(licitacao, arquivo)
                     return resultados
 
@@ -165,6 +168,7 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
                     "licitacao": dict(licitacao),
                     "arquivo": dict(arquivo),
                     "resumo_edital": respuestas,
+                    "status": "PROCESSADO",
                 }
                 salvar_licitacao(documento)
 
@@ -173,6 +177,7 @@ def get_licitacoes() -> list[ResultadoAnaliseLicitacao]:
                         "licitacao": licitacao,
                         "arquivo": arquivo,
                         "resumo_edital": respuestas,
+                        "status": "PROCESSADO",
                     }
                 )
 
@@ -224,11 +229,14 @@ def analizar_licitacao_por_id(
         resumo = documento_existente.get("resumo_edital") or documento_existente.get(
             "respostas", []
         )
-        # return {
-        #     "licitacao": documento_existente.get("licitacao", {}),
-        #     "arquivo": documento_existente.get("arquivo", {}),
-        #     "resumo_edital": resumo,
-        # }
+        return {
+            "licitacao": documento_existente.get("licitacao", {}),
+            "arquivo": documento_existente.get("arquivo", {}),
+            "resumo_edital": resumo,
+            "status": documento_existente.get("status") or (
+                "PROCESSADO" if resumo else "PENDENTE"
+            ),
+        }
     licitacao = buscar_licitacao_por_numero_controle(numero_controle_pncp)
     if licitacao is None:
         return None
@@ -242,17 +250,18 @@ def analizar_licitacao_por_id(
 
     arquivo = editais[0]
 
+    documento_pendente: LicitacaoDocumento = {
+        "numero_controle_pncp": numero_controle_pncp,
+        "licitacao": dict(licitacao),
+        "arquivo": dict(arquivo),
+        "resumo_edital": [],
+        "status": "PENDENTE",
+    }
+    salvar_licitacao(documento_pendente)
+
     if ASYNC_LICITATION_SUMMARY_ENABLED:
         # Salva sem o resumo da IA e encaminha o processamento para o
         # endpoint interno, encerrando a execucao em seguida.
-        documento: LicitacaoDocumento = {
-            "numero_controle_pncp": numero_controle_pncp,
-            "licitacao": dict(licitacao),
-            "arquivo": dict(arquivo),
-            "resumo_edital": [],
-        }
-        salvar_licitacao(documento)
-
         # Fire-and-forget: chama o endpoint interno para processar o resumo
         # em background sem travar a resposta.
         payload = {
@@ -282,6 +291,7 @@ def analizar_licitacao_por_id(
             "licitacao": licitacao,
             "arquivo": arquivo,
             "resumo_edital": [],
+            "status": "PENDENTE",
         }
 
     responses = _analizar_editais(licitacao, arquivo)
@@ -291,6 +301,7 @@ def analizar_licitacao_por_id(
         "licitacao": dict(licitacao),
         "arquivo": dict(arquivo),
         "resumo_edital": responses,
+        "status": "PROCESSADO",
     }
     salvar_licitacao(documento)
 
@@ -298,6 +309,7 @@ def analizar_licitacao_por_id(
         "licitacao": licitacao,
         "arquivo": arquivo,
         "resumo_edital": responses,
+        "status": "PROCESSADO",
     }
 
 
@@ -324,6 +336,7 @@ def processar_resumo_edital(dados: dict) -> dict:
         "licitacao": dict(licitacao),
         "arquivo": dict(arquivo),
         "resumo_edital": responses,
+        "status": "PROCESSADO",
     }
     salvar_licitacao(documento)
 
@@ -332,6 +345,7 @@ def processar_resumo_edital(dados: dict) -> dict:
         "licitacao": licitacao,
         "arquivo": arquivo,
         "resumo_edital": responses,
+        "status": "PROCESSADO",
     }
 
 
