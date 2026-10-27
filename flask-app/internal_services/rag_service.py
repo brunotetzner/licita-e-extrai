@@ -16,13 +16,21 @@ from repositories.vetores_repository import (
 )
 
 DEFAULT_QUESTIONS = [
-    "Quais são as especificações técnicas e quantitativos mínimos exigidos no termo de referência?",
-    "Qual o prazo de entrega dos produtos/serviços estabelecido no edital?",
-    "Qual o prazo de vigência do contrato e as condições para prorrogação?",
-    "Qual a descrição do objeto e quais as obrigações específicas da contratada para o cumprimento do contrato?",
+    "Liste cada item do termo de referência com sua descrição, unidade de medida, "
+    "quantidade E o valor unitário e o valor total estimado de cada item. "
+    "Apresente no formato: 'Item XX - quantidade: N unidades, valor unitário R$ ..., "
+    "valor total R$ ...'. Se algum valor não estiver explícito no documento, indique "
+    "explicitamente que não foi localizado.",
+    "Quais são os prazos de entrega dos produtos/serviços e de vigência do contrato, "
+    "incluindo as condições para eventual prorrogação?",
+    "Qual a descrição do objeto e quais as obrigações específicas da contratada? "
+    "Informe também todas as exigências de habilitação técnica e econômico-financeira "
+    "previstas no edital/termo de referência, enumerando documentos, comprovações, "
+    "índices ou valores exigidos e indicando o item/cláusula correspondente. "
+    "Se alguma categoria não tiver exigências específicas, informe isso claramente.",
     "Há exigência de prova de conceito, amostra ou protótipo antes da contratação?",
-    "É exigida garantia contratual? O modelo de entrega é integral, parcelado, por estimativa ou registro de preços?"
-
+    "É exigida garantia contratual? O modelo de contratação/entrega é integral, "
+    "parcelado, por estimativa ou registro de preços?",
 ]
 
 
