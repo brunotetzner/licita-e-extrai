@@ -28,6 +28,9 @@ def validar_token():
     Aplica-se a qualquer requisição a /licitacoes/*. Se o token for
     inválido, ausente ou expirado, retorna 401.
     """
+    if request.method == "OPTIONS":
+        return None
+
     token = _extrair_token()
     if token is None:
         return jsonify({"erro": "Token ausente. Envie 'Authorization: Bearer <token>'."}), 401

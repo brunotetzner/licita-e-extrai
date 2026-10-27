@@ -4,6 +4,8 @@
 
 - Os exemplos usam `http://localhost:5000` como endereço-base. Troque-o pelo
   endereço do servidor.
+- A API aceita chamadas CORS de qualquer origem. Isso não remove a autenticação:
+  as rotas sob `/licitacoes` continuam exigindo um JWT no header `Authorization`.
 - Os corpos JSON devem ser enviados com `Content-Type: application/json`.
 - As rotas sob `/licitacoes` exigem autenticação. Envie o token JWT retornado
   pelo login no header `Authorization: Bearer <token>`.
