@@ -259,6 +259,7 @@ def analizar_licitacao_por_id(
     if licitacao is None:
         return None
 
+    print('buscando editais')
     editais = buscar_editais(licitacao)
     if not editais:
         print(

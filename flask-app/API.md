@@ -137,6 +137,12 @@ O comportamento depende de a licitação já estar salva e da configuração
 
 - Se já estiver processada, retorna o documento existente sem baixar e analisar
   novamente o edital.
+- Caso contrário, busca a licitação no PNCP. Primeiro tenta o endpoint de
+  consulta individual do PNCP; se ele retornar `404/400` (o que ocorre quando a
+  licitação ainda não tem todos os dados publicados), faz um fallback pela API
+  de busca do PNCP, filtrando pelo número de controle. A resposta é normalizada
+  para o mesmo formato em ambos os casos, então o consumidor não precisa saber
+  de qual origem os dados vieram.
 - Com o modo assíncrono desativado (padrão), baixa e analisa o edital antes de
   responder. `resumo_edital` contém as respostas geradas.
 - Com `ASYNC_LICITATION_SUMMARY_ENABLED=true`, salva inicialmente o documento
