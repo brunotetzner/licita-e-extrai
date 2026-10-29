@@ -209,7 +209,7 @@ def _normalizar_licitacao_search(item: dict[str, Any]) -> dict[str, Any]:
 # Limites para o fallback pela API de busca (/search/).
 MAX_PAGINAS_BUSCA = 5
 TAM_PAGINA_BUSCA_Q = 10  # Estrategia 1 (q = numero de controle).
-TAM_PAGINA_BUSCA_ANO = 100  # Estrategia 2 (filtro por ano).
+TAM_PAGINA_BUSCA_ANO = 10  # Estrategia 2 (filtro por ano).
 
 
 def _normalizar_numero_controle(valor: Any) -> str:
@@ -262,6 +262,7 @@ def _buscar_por_q(q: str, alvo_normalizado: str) -> dict[str, Any] | None:
                     "ordenacao": "-data",
                     "pagina": pagina,
                     "tam_pagina": TAM_PAGINA_BUSCA_Q,
+                    "status": "recebendo_proposta",
                 },
             )
         except requests.RequestException:
@@ -301,6 +302,7 @@ def _buscar_por_ano(
                     "ordenacao": "-data",
                     "pagina": pagina,
                     "tam_pagina": TAM_PAGINA_BUSCA_ANO,
+                    "status": "recebendo_proposta",
                 },
             )
         except requests.RequestException:
@@ -350,7 +352,9 @@ def buscar_licitacao_por_numero_controle_via_search(
     sequencial = str(int(match.group(3)))
 
     # Estrategia 1: q = numero de controle completo, como fornecido.
-    q_1 = f"{cnpj}-{sequencial_compra}-{sequencial}/{ano}"
+    # O PNCP indexa o sequencial com zeros a esquerda (ex.: -1-014820/2026);
+    # reconstruimos o formato padronizado para que a busca o encontre.
+    q_1 = f"{cnpj}-{sequencial_compra}-{int(sequencial):06d}/{ano}"
     item = _buscar_por_q(q_1, alvo)
     print(item, q_1, alvo)
     if item is None:
